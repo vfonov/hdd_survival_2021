@@ -2,21 +2,21 @@
 
 # unpack all files
 if false;then
-for i in *.zip;do unzip $i;done
+  # better do this manually:
+
+  for i in *.zip;do unzip $i;done
+
+  # rearrange all the csv files into subdirectories per year
 fi
 
 
-
-if false;then
 # create sqlite3 tables
-
 # 2013,2014,2015 are sligtly different, so create separate databases
 sqlite3 backblaze_2013.db < docs_2013/create_table.sql
 sqlite3 backblaze_2014.db < docs_2014/create_table_2014.sql
 sqlite3 backblaze_2015.db < docs_2015/create_table_2015.sql
 # starting from 2016 the format is the same
 sqlite3 backblaze_2016.db < docs_Q1_2016/create_table_2016.sql
-
 
 
 # import individual records for 2013-2015
@@ -38,7 +38,6 @@ for i in 2016 2017;do
 .mode csv
 .import $j drive_stats
 END
-echo $j
   done
 done
 
@@ -46,7 +45,7 @@ sqlite3 backblaze_2016.db <<END
 delete from drive_stats where model = 'model';
 END
 
-fi
+
 
 
 #merge all records into a single one
@@ -411,7 +410,6 @@ insert into drive_stats(
 END
 
 
-# create indexes (optional)
 sqlite3 backblaze_2013_2017.db <<END
 create index serial_idx on drive_stats(serial_number);
 create index date_idx on drive_stats(date);
@@ -426,15 +424,19 @@ select count(distinct serial_number) from drive_stats where 1500000000000 <= cap
 END
 
 
+
+# summarize the data
 sqlite3 backblaze_2013_2017.db <<END
 .echo on
 CREATE INDEX serial_model_cap ON drive_stats(serial_number,model,capacity_bytes);
 
+
+-- create summary table
 CREATE TABLE drives(
 serial_number TEXT NOT NULL primary key,
 model TEXT NOT NULL,
 capacity_bytes INTEGER (8) NOT NULL,
-start,stop,status,age_hrs);
+start,status,age_hrs);
 
 -- PL1331LAGTGMVH corresponds to two models (strangely)
 
@@ -448,7 +450,6 @@ insert into drives(serial_number,model,capacity_bytes)
           serial_number!='' AND
           serial_number!='PL1331LAGTGMVH'
     GROUP BY 1,2;
-
 
 -- status=0 when drive is censored (didn't fail)
 UPDATE drives SET status=0;
