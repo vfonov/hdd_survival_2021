@@ -1,4 +1,3 @@
-#library(DBI)
 library(tidyverse)
 library(scales)
 library(survival)
@@ -6,10 +5,12 @@ library(survival)
 # using survminer package for plotting pretty survival curves
 library(survminer)
 
-#bb <- dbConnect(RSQLite::SQLite(), "backblaze_2013_2017.db")
 
-# get survival info
-#hdd_surv<-dbGetQuery(bb, 'select serial_number,model,status,age_hrs/24.0 as age_days,capacity_bytes/1000000000000.0 as capacity,start from drives where 1500000000000 <= capacity_bytes')
+# make graph plotting prettier on linux without X11
+options(bitmapType='cairo')
+
+# default theme 
+theme_set(theme_gray(base_size = 12))
 
 hdd<-read_csv('backblaze_2013_2017_hdd_survival.csv')
 
@@ -19,65 +20,71 @@ hdd<-hdd %>% mutate(make=as.factor(make), model=as.factor(model), capacity = as.
 
 # let's see how the hard drives were installed
 
-ggplot(hdd,aes(x=start,fill=capacity))+
+
+png("capacity_by_year.png",width=800,height=600)
+
+ggplot(hdd,aes(x=start, fill=capacity))+
    geom_histogram()+
-   scale_x_date(labels=date_format("%Y-%b"),breaks = date_breaks('1 month'), limits = c(as.Date("2013-01-01"), as.Date("2018-01-01")))+
-   theme_bw()+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+xlab(NULL)
+   scale_x_date(labels=date_format("%Y-%b"),
+                breaks = date_breaks('1 month'), 
+                limits = c(as.Date("2013-01-01"), as.Date("2018-01-01")))+
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+xlab(NULL)
 
 
-# 0. overall survival plot, using K-M method
+# 0. overall survival plot, using Kaplan-Meier notation
+png("overall_survival.png",width=800,height=600)
 
-hdd_surv <- survfit(Surv(age_days, status) ~ 1, data=hdd)
+ggsurvplot(survfit(Surv(age_days, status) ~ 1, data=hdd),data=hdd, 
+  conf.int = TRUE,xlab = "Days",ylim=c(0.5,1.0),conf.int.style ='step',censor=F,legend='none' )
 
+# 1. let's see is there a difference between different capacities, simple Kaplan-Meier case
 
+png("by_capacity_survival.png",width=800,height=600)
+cap<-survfit(Surv(age_days, status) ~ capacity, data=hdd)
+ggsurvplot(cap, data=hdd, 
+  conf.int = TRUE,xlab = "Days",
+  ylim=c(0.5,1.0),
+  conf.int.style ='step', 
+  pval=TRUE, censor=F,pval.coord=c(100,0.7),surv.scale='percent',
+  legend.labs = levels(hdd$capacity),legend.title='Capacity (Tb)' )
 
-# 1. let's see is there a difference between 
-
-
-
-
-# remove rare hard drives
-common_models<-hdd_surv %>% group_by(model) %>% summarise(n=n()) %>% filter(n>20)
-
-hdd_surv<-hdd_surv %>% filter(model_no %in% common_models$names) %>% mutate(model_no=droplevels(model_no))
-
-# overall survival regardless of any info
-
-# plot overall survival curve
-autoplot(hdd_surv_fit)
-#summary(hdd_surv_fit)
-
-
-# fit with drive make
-
-# 1st with make
-hdd_surv_fit <- survfit(Surv(age_days, status) ~ make, data=hdd_surv)
-autoplot(hdd_surv_fit)
-
-# 2nd with capacity
-hdd_surv_fit <- survfit(Surv(age_days, status) ~ capacity, data=hdd_surv)
-autoplot(hdd_surv_fit)
+png("by_make_survival.png",width=800,height=600)
+make<-survfit(Surv(age_days, status) ~ make, data=hdd)
+ggsurvplot(make, data=hdd, 
+  conf.int = TRUE,xlab = "Days",
+  ylim=c(0.5,1.0),
+  conf.int.style ='step', 
+  pval=TRUE, censor=F,pval.coord=c(100,0.7),surv.scale='percent',
+  legend.labs = levels(hdd$make),legend.title='Make' )
 
 
-# let's take a look at WDC
+# now let's see how different models of 8Tb hard drives behave, again suing Kaplan-Meier
+png("8tb_by_model_survival.png",width=800,height=600)
+hdd_8Tb<-hdd %>% filter(capacity==8) %>% mutate(model=droplevels(model))
 
-wdc_surv<-hdd_surv %>% filter(make=='WDC') %>% mutate(model_no=droplevels(model_no))
-# 3rd with model_no
+model8<-survfit(Surv(age_days, status) ~ model, data=hdd_8Tb)
+ggsurvplot(model8, data=hdd_8Tb, 
+  conf.int = TRUE,xlab = "Days",
+  ylim=c(0.5,1.0),
+  conf.int.style ='step', 
+  pval=TRUE, censor=T, pval.coord=c(100,0.7), surv.scale='percent',
+  legend.labs = levels(hdd_8Tb$model), legend.title='8TB model' )
 
-wdc_surv_fit <- coxph(Surv(age_days, status) ~ model_no, data=wdc_surv)
 
-hdd_surv_fit_tidy = tidy(hdd_surv_fit)
-mx = max(hdd_surv_fit_tidy$n.censor)
+# and now for large hard drives
+png("large_by_model_survival.png",width=800,height=600)
 
-#autoplot(hdd_surv_fit)
-ggplot(hdd_surv_fit_tidy, aes(time, estimate)) + 
-  geom_line() +
-  facet_wrap(~strata) +
-  geom_ribbon(aes(ymin=conf.low, ymax=conf.high), alpha=.25) + 
-  xlab("Days") + 
-  ylab("Proportion Survival")
-  
-  
-st_surv<-hdd_surv %>% filter(make=='SEAGATE') %>% mutate(model_no=droplevels(model_no))
-st_surv_fit <- survfit(Surv(age_days, status) ~ model_no, data=st_surv)
+hdd_large<-hdd %>% filter(capacity %in% c(8,10,12)) %>% mutate(model=droplevels(model))
+# remove rare hard drives and make informative name
+hdd_large_common<-hdd_large %>% group_by(model) %>% summarise(n=n()) %>% filter(n>20)
+hdd_large<-hdd_large %>% filter(model %in% hdd_large_common$model) %>% mutate(mdl=as.factor(paste(capacity,make,model,sep="\n")))
+
+model_large<-survfit(Surv(age_days, status) ~ mdl, data=hdd_large)
+ggsurvplot(model_large, data=hdd_large, 
+  conf.int = TRUE,xlab = "Days",
+  ylim=c(0.5,1.0),
+  conf.int.style ='step', 
+  pval=TRUE, censor=F, pval.coord=c(100,0.7), surv.scale='percent',
+  legend.labs = levels(hdd_large$mdl), legend.title='Large HDD' )
+
 
