@@ -12,6 +12,8 @@ Raw data from <https://www.backblaze.com/b2/hard-drive-test-data.html> , was dow
 * `capacity` - capacity in TB, rounded to the one significant digit
 * `start` - observation start (i.e the earliest day the drive was found in DB)
 
+## Dependencies
+* `install.packages(c('tidyverse','survival','survminer','scales'))`
 
 ## Survival Analysis
 
