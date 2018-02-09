@@ -33,18 +33,20 @@ ggplot(hdd,aes(x=start, fill=capacity))+
 
 
 # example of survival plot:
-png("survival_example1.png",width=800,height=600)
+png("survival_example_one.png",width=800,height=600)
 
 hdd_example1<-hdd %>% filter(model=='ST31500341AS')
-ggsurvplot(survfit(Surv(age_days, status) ~ 1, data=hdd_example1),data=hdd_example1, 
-  conf.int = TRUE,xlab = "Days of service",ylim=c(0.4,1.0),conf.int.style ='step',censor=T,legend='none',surv.scale='percent' ),
+ggsurvplot( survfit(Surv(age_days, status) ~ 1, data=hdd_example1),data=hdd_example1, 
+  conf.int = TRUE,xlab = "Days of service",ylim=c(0.4,1.0),
+  conf.int.style ='step',censor=T,legend='none',surv.scale='percent' )
   
 
-png("survival_example2.png",width=800,height=600)
+png("survival_example_two_hdd.png",width=800,height=600)
 hdd_example2<-hdd %>% filter(model %in% c('ST31500341AS','ST31500541AS')) %>% mutate(model=droplevels(model))
 s<-survfit(Surv(age_days, status) ~ model, data=hdd_example2)
 ggsurvplot(s,data=hdd_example2, legend.title='1.5Tb model',
-  conf.int = TRUE,xlab = "Days of service",ylim=c(0.4,1.0),conf.int.style ='step',censor=T,pval=T,pval.coord=c(100,0.7),
+  conf.int = TRUE,xlab = "Days of service",
+  ylim=c(0.4,1.0),conf.int.style ='step',censor=T,pval=T,pval.coord=c(100,0.7),
   surv.scale='percent',
   legend.labs = levels(hdd_example2$model))
 
@@ -54,17 +56,27 @@ ggsurvplot(survfit(Surv(age_days, status) ~ 1, data=hdd),data=hdd,
   conf.int = TRUE,xlab = "Days of service",ylim=c(0.5,1.0),conf.int.style ='step',censor=F,legend='none',surv.scale='percent' )
 
 
-png("survival_example3.png",width=800,height=600)
-hdd_common_10<-hdd %>% group_by(model) %>% summarise(n=n()) %>% arrange(desc(n)) %>% head(10)
-hdd_common<-hdd %>% filter(model %in% hdd_common_10$model) %>% 
-      mutate( model=factor( as.character(model),levels=hdd_common_10$model))
+png("survival_by_quarter.png",width=800,height=600)
+hdd_ST4000DM000=hdd %>% filter(model=='ST4000DM000')
 
-ggsurvplot(survfit(Surv(age_days, status) ~ model, data=hdd_common),data=hdd_common,
-  conf.int = F,xlab = "Days of service",ylim=c(0.4,1.0),conf.int.style ='step',censor=F,pval=T,
-  pval.coord=c(100,0.7),surv.scale='percent',legend.labs = levels(hdd_common$model),
-  legend.title='Top 10 models',  legend = "right")
+model_by_quarter<-survfit(Surv(age_days, status) ~ quarter, data=hdd_ST4000DM000 )
+ggsurvplot(model_by_quarter,data=hdd_ST4000DM000,
+  conf.int = F,xlab = "Days of service",ylim=c(0.7,1.0),censor=F,pval=T,
+  pval.coord=c(100,0.7),surv.scale='percent',legend.labs = levels(hdd_ST4000DM000$quarter),
+  legend.title="ST4000DM000\nby quarter",  legend = "right")
+
+# now let's do something interesting
+# here we COX proportional hazard model to estimate multiplicative effects 
+# main assumptionis that they are actually fit Cox model
+# see https://en.wikipedia.org/wiki/Proportional_hazards_model 
+# and 
+png("coxph_results_quarterly.png",width=800,height=1000)
+model_by_quarter_coxph<-coxph(Surv(age_days, status) ~ quarter, data=hdd_ST4000DM000)
+# plot results
+ggforest(model_by_quarter_coxph)
 
 
+  
 # 1. let's see is there a difference between different capacities, simple Kaplan-Meier case
 
 png("by_capacity_survival.png",width=800,height=600)
@@ -102,7 +114,6 @@ ggsurvplot(by_year, data=hdd,
     censor=F,pval.coord=c(100,0.8), 
     surv.scale='percent', legend.labs = levels(hdd$year), legend.title='by Year' )
   
-  
 # now let's see how different models of 8Tb hard drives behave, again using Kaplan-Meier
 png("8tb_by_model_survival.png",width=800,height=600)
 hdd_8Tb<-hdd %>% filter(capacity==8) %>% mutate(model=droplevels(model))
@@ -115,75 +126,67 @@ ggsurvplot(model8, data=hdd_8Tb,
   pval=TRUE, censor=T, pval.coord=c(100,0.7), surv.scale='percent',
   legend.labs = levels(hdd_8Tb$model), legend.title='8TB model' )
 
-
 # and now for large hard drives
 png("large_by_model_survival.png",width=800,height=600)
-hdd_large<-hdd %>% filter(capacity %in% c(8,10,12)) %>% mutate(model=droplevels(model))
-# remove rare hard drives and make informative name
-hdd_large_common<-hdd_large %>% group_by(model) %>% summarise(n=n()) %>% filter(n>20)
-hdd_large<-hdd_large %>% filter(model %in% hdd_large_common$model) %>% mutate(mdl=as.factor(paste(capacity,make,model,sep="\n")))
 
-model_large<-survfit(Surv(age_days, status) ~ mdl, data=hdd_large)
+hdd_large<-hdd %>% filter(capacity %in% c(8,10,12)) %>% mutate(model=droplevels(model))
+hdd_common_large<-hdd_large %>% group_by(model) %>% summarise(n=n()) %>% arrange(desc(n)) %>% head(4)
+
+hdd_large<-hdd_large %>% filter(model %in% hdd_common_large$model)  %>% mutate(model=droplevels(model))
+print("Large models:")
+print(hdd_common_large$model)
+
+model_large<-survfit(Surv(age_days, status) ~ model, data=hdd_large)
 ggsurvplot(model_large, data=hdd_large, 
   conf.int = TRUE,xlab = "Days",
-  ylim=c(0.75,1.0),
+  ylim=c(0.925,1.0),
   conf.int.style ='step', 
-  pval=TRUE, censor=F, pval.coord=c(100,0.7), surv.scale='percent',
-  legend.labs = levels(hdd_large$mdl), legend.title='Large HDD' )
+  pval=T, censor=F, pval.coord=c(10,0.95), surv.scale='percent',
+  legend = "right",
+  legend.labs = levels(hdd_large$model), legend.title='Large HDD' )
 
-
-# large (8,10,12) vs med (3,4,5,6) vs small (1.5,2)
-
-png("by_category_survival.png",width=800,height=600)
-
-hdd<-hdd %>% mutate(cap=as.factor( ifelse(capacity %in% c(1.5,2),'small: <3 ', ifelse(capacity %in% c(3,4,5,6), 'med: [3-6]','large: >6'))))
-model_by_category<-survfit(Surv(age_days, status) ~ cap, data=hdd)
-
-ggsurvplot(model_by_category, data=hdd,
-    conf.int = TRUE, xlab = "Days of service",
-    ylim=c(0.75,1.0), 
-    pval=T,
-    censor=F,pval.coord=c(100,0.8), 
-    surv.scale='percent', legend.labs = levels(hdd$cap), legend.title='by category' )
-
-
-    
-# now let's do something interesting
-
-# here we COX proportional hazard model to estimate multiplicative effects 
-# main assumptionis that they are actually fit Cox model
-# see https://en.wikipedia.org/wiki/Proportional_hazards_model 
-# and 
-png("coxph_results_yearly.png",width=800,height=1000)
-
-model_coxph<-coxph(Surv(age_days, status) ~ make + capacity + year, data=hdd)
+png("large_by_model_survival_coxph.png",width=800,height=300)
+model_coxph<-coxph(Surv(age_days, status) ~ model, data=hdd_large)
 # plot results
 ggforest(model_coxph)
 
+  
 
+  
+png("survival_top10.png",width=800,height=600)
+hdd_common_10<-hdd %>% group_by(model) %>% summarise(n=n()) %>% arrange(desc(n)) %>% head(10)
+hdd_common<-hdd %>% filter(model %in% hdd_common_10$model) %>% 
+      mutate( model=factor( as.character(model),levels=hdd_common_10$model))
 
-# let's see top 3 popular models
-hdd_common<-hdd %>% group_by(model) %>% summarise(n=n()) %>% arrange(desc(n)) %>% head(4)
-hdd_pop<-hdd %>% filter(model  %in% hdd_common$model)
-hdd_pop<-hdd_pop %>% mutate(model=droplevels(model))
-model_pop<-survfit(Surv(age_days, status) ~ model, data=hdd_pop)
-ggsurvplot(model_pop, data=hdd_pop,
-    conf.int = TRUE, xlab = "Days of service",
-    ylim=c(0.75,1.0), 
-    pval=T,
-    censor=F,pval.coord=c(100,0.8), 
-    surv.scale='percent', legend.labs = levels(hdd_pop$model), legend.title='top 4 HDD' )
+ggsurvplot(survfit(Surv(age_days, status) ~ model, data=hdd_common),data=hdd_common,
+  conf.int = F,xlab = "Days of service",ylim=c(0.4,1.0),conf.int.style ='step',censor=F,pval=T,
+  pval.coord=c(100,0.7),surv.scale='percent',legend.labs = levels(hdd_common$model),
+  legend.title='Top 10 models',  legend = "right")
 
+png("survival_top10_coxph.png",width=1000,height=800)
+hdd_common_coxph<-coxph(Surv(age_days, status) ~ model, data=hdd_common)
+# plot results
+ggforest(hdd_common_coxph)
 
-hdd_st4000dm000<-hdd %>% 
-  filter(model=='ST4000DM000') %>% 
-  mutate(quarter=as.factor(as.yearqtr(start)),monthly=as.factor(format(start,'%Y-%m')))
+# post-hoc comparision of most reliable hard drives:
+compare<-pairwise_survdiff(Surv(age_days, status) ~ model, data=hdd_common)
 
-model_st4000dm000<-survfit(Surv(age_days, status) ~ quarter, data=hdd_st4000dm000)
-ggsurvplot(model_st4000dm000, data=hdd_st4000dm000,
-    conf.int = F, xlab = "Days of service",
-    ylim=c(0.75,1.0), 
-    pval=T,
-    censor=F,pval.coord=c(100,0.8), 
-    surv.scale='percent', legend.labs = levels(hdd_st4000dm000$quarter), legend.title='top 4 HDD' )
+# check if 5 most reliable are different:
+reliable=c('HDS5C3030ALA630', 'HMS5C4040ALE640', 'HDS5C4040ALE630' , 'HDS722020ALA330' , 'HMS5C4040BLE640')
 
+broom::tidy(res) %>% filter(group1 %in% reliable , group2 %in% reliable) %>% 
+    mutate( sig=symnum(p.value, cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 0.1, 1),
+                                symbols = c("****", "***", "**", "*", "+", " ") ) )
+
+                                
+png("survreg_time_to_failure.png",width=800,height=600)
+
+fit_model_year<-survreg(Surv(age_days, status) ~ model*year, data=hdd_common)
+
+newdat<-expand.grid(model=levels(hdd_common$model),year='2017')
+newdat<-cbind(newdat,predict(fit_model_year, newdata=newdat,type="quantile",p=0.1,se=T))
+
+ggplot(newdat,aes(x=model,y=fit,ymin=fit-1.96*se.fit,ymax=fit+1.96*se.fit))+
+    geom_errorbar()+geom_point()+coord_flip()+ylab('Days of service')+xlab('HDD Model')+ggtitle('Expected time to 10% failure')
+
+# parametric models
