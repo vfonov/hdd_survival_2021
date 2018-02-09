@@ -7,10 +7,10 @@ library(zoo)
 library(survminer)
 
 # make graph plotting prettier on linux without X11
-options(bitmapType='cairo')
+#options(bitmapType='cairo')
 
 # default theme 
-theme_set(theme_gray(base_size = 18))
+theme_set(theme_bw(base_size = 20))
 
 hdd<-read_csv('backblaze_2013_2017_hdd_survival.csv')
 
@@ -37,11 +37,13 @@ png("survival_example1.png",width=800,height=600)
 
 hdd_example1<-hdd %>% filter(model=='ST31500341AS')
 ggsurvplot(survfit(Surv(age_days, status) ~ 1, data=hdd_example1),data=hdd_example1, 
-  conf.int = TRUE,xlab = "Days of service",ylim=c(0.4,1.0),conf.int.style ='step',censor=T,legend='none',surv.scale='percent' )
+  conf.int = TRUE,xlab = "Days of service",ylim=c(0.4,1.0),conf.int.style ='step',censor=T,legend='none',surv.scale='percent' ),
+  
 
 png("survival_example2.png",width=800,height=600)
 hdd_example2<-hdd %>% filter(model %in% c('ST31500341AS','ST31500541AS')) %>% mutate(model=droplevels(model))
-ggsurvplot(survfit(Surv(age_days, status) ~ model, data=hdd_example2),data=hdd_example2, legend.title='1.5Tb model',
+s<-survfit(Surv(age_days, status) ~ model, data=hdd_example2)
+ggsurvplot(s,data=hdd_example2, legend.title='1.5Tb model',
   conf.int = TRUE,xlab = "Days of service",ylim=c(0.4,1.0),conf.int.style ='step',censor=T,pval=T,pval.coord=c(100,0.7),
   surv.scale='percent',
   legend.labs = levels(hdd_example2$model))
