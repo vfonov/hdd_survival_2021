@@ -178,7 +178,8 @@ broom::tidy(res) %>% filter(group1 %in% reliable , group2 %in% reliable) %>%
     mutate( sig=symnum(p.value, cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 0.1, 1),
                                 symbols = c("****", "***", "**", "*", "+", " ") ) )
 
-                                
+
+# parametric models                                
 png("survreg_time_to_failure.png",width=800,height=600)
 
 fit_model_year<-survreg(Surv(age_days, status) ~ model*year, data=hdd_common)
@@ -186,7 +187,28 @@ fit_model_year<-survreg(Surv(age_days, status) ~ model*year, data=hdd_common)
 newdat<-expand.grid(model=levels(hdd_common$model),year='2017')
 newdat<-cbind(newdat,predict(fit_model_year, newdata=newdat,type="quantile",p=0.1,se=T))
 
+
+#ST4000DM000:
+data_ST4000DM000_2017<-hdd %>% filter(model=='ST4000DM000',year=='2017')
+k_m_fit<-broom::tidy(survfit(Surv(age_days, status) ~ 1, data=data_ST4000DM000_2017))
+
+par_fit<-expand.grid(model='ST4000DM000',year='2017',time=1:600)
+par_fit<-cbind(par_fit,predict(fit_model_year, newdata=par_fit,se=T))
+
+
+
+ggplot(k_m_fit,aes(x=time,y=estimate,ymin=conf.low,ymax=conf.high))+
+  geom_line()+
+  geom_ribbon(alpha=0.1)
+
+
+
 ggplot(newdat,aes(x=model,y=fit,ymin=fit-1.96*se.fit,ymax=fit+1.96*se.fit))+
     geom_errorbar()+geom_point()+coord_flip()+ylab('Days of service')+xlab('HDD Model')+ggtitle('Expected time to 10% failure')
 
-# parametric models
+
+
+
+
+
+
