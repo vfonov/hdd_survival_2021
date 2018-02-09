@@ -22,7 +22,7 @@ hdd<-hdd %>% mutate(make=as.factor(make), model=as.factor(model), capacity = as.
 
 # let's see how the hard drives were installed
 
-png("capacity_by_year.png",width=800,height=600)
+png("figure/figure0.png",width=800,height=600)
 
 ggplot(hdd,aes(x=start, fill=capacity))+
    geom_histogram()+
@@ -33,7 +33,7 @@ ggplot(hdd,aes(x=start, fill=capacity))+
 
 
 # example of survival plot:
-png("survival_example_one.png",width=800,height=600)
+png("figure/figure1.png",width=800,height=600)
 
 hdd_example1<-hdd %>% filter(model=='ST31500341AS')
 ggsurvplot( survfit(Surv(age_days, status) ~ 1, data=hdd_example1),data=hdd_example1, 
@@ -41,7 +41,7 @@ ggsurvplot( survfit(Surv(age_days, status) ~ 1, data=hdd_example1),data=hdd_exam
   conf.int.style ='step',censor=T,legend='none',surv.scale='percent' )
   
 
-png("survival_example_two_hdd.png",width=800,height=600)
+png("figure/figure2.png",width=800,height=600)
 hdd_example2<-hdd %>% filter(model %in% c('ST31500341AS','ST31500541AS')) %>% mutate(model=droplevels(model))
 s<-survfit(Surv(age_days, status) ~ model, data=hdd_example2)
 ggsurvplot(s,data=hdd_example2, legend.title='1.5Tb model',
@@ -50,13 +50,8 @@ ggsurvplot(s,data=hdd_example2, legend.title='1.5Tb model',
   surv.scale='percent',
   legend.labs = levels(hdd_example2$model))
 
-# 0. overall survival plot, using Kaplan-Meier notation
-png("overall_survival.png",width=800,height=600)
-ggsurvplot(survfit(Surv(age_days, status) ~ 1, data=hdd),data=hdd, 
-  conf.int = TRUE,xlab = "Days of service",ylim=c(0.5,1.0),conf.int.style ='step',censor=F,legend='none',surv.scale='percent' )
 
-
-png("survival_by_quarter.png",width=800,height=600)
+png("figure/figure3.png",width=800,height=600)
 hdd_ST4000DM000=hdd %>% filter(model=='ST4000DM000')
 
 model_by_quarter<-survfit(Surv(age_days, status) ~ quarter, data=hdd_ST4000DM000 )
@@ -70,64 +65,14 @@ ggsurvplot(model_by_quarter,data=hdd_ST4000DM000,
 # main assumptionis that they are actually fit Cox model
 # see https://en.wikipedia.org/wiki/Proportional_hazards_model 
 # and 
-png("coxph_results_quarterly.png",width=800,height=1000)
+png("figure/figure4.png",width=800,height=1000)
 model_by_quarter_coxph<-coxph(Surv(age_days, status) ~ quarter, data=hdd_ST4000DM000)
 # plot results
 ggforest(model_by_quarter_coxph)
 
 
-  
-# 1. let's see is there a difference between different capacities, simple Kaplan-Meier case
-
-png("by_capacity_survival.png",width=800,height=600)
-cap<-survfit(Surv(age_days, status) ~ capacity, data=hdd)
-ggsurvplot(cap, data=hdd, 
-  conf.int = TRUE,xlab = "Days of service",
-  ylim=c(0.7,1.0),
-  conf.int.style ='step', 
-  pval=TRUE, censor=F,pval.coord=c(100,0.7),surv.scale='percent',
-  legend.labs = levels(hdd$capacity),legend.title='Capacity (Tb)' )
-
-png("by_make_survival.png",width=800,height=600)
-make<-survfit(Surv(age_days, status) ~ make, data=hdd)
-ggsurvplot(make, data=hdd, 
-  conf.int = TRUE,xlab = "Days of service",
-  ylim=c(0.75,1.0),
-  conf.int.style ='step', 
-  pval=TRUE, censor=F,pval.coord=c(100,0.7),surv.scale='percent',
-  legend.labs = levels(hdd$make),legend.title='Make' )
-
-
-png("by_year_survival.png",width=800,height=600)
-by_year<-survfit(Surv(age_days, status) ~ year, data=hdd)
-ggsurvplot(by_year, data=hdd, 
-  conf.int = TRUE,xlab = "Days of service",
-  ylim=c(0.75,1.0),
-  pval=TRUE, censor=F,pval.coord=c(100,0.8),surv.scale='percent',
-  legend.labs = levels(hdd$year),legend.title='by Year' )
-
-png("by_year_survival_1st_year.png",width=800,height=600)
-ggsurvplot(by_year, data=hdd,
-    conf.int = TRUE, xlab = "Days of service", break.time.by=30,
-    ylim=c(0.975,1.0), 
-    xlim=c(0,365),  
-    censor=F,pval.coord=c(100,0.8), 
-    surv.scale='percent', legend.labs = levels(hdd$year), legend.title='by Year' )
-  
-# now let's see how different models of 8Tb hard drives behave, again using Kaplan-Meier
-png("8tb_by_model_survival.png",width=800,height=600)
-hdd_8Tb<-hdd %>% filter(capacity==8) %>% mutate(model=droplevels(model))
-
-model8<-survfit(Surv(age_days, status) ~ model, data=hdd_8Tb)
-ggsurvplot(model8, data=hdd_8Tb, 
-  conf.int = TRUE,xlab = "Days",
-  ylim=c(0.75,1.0),
-  conf.int.style ='step', 
-  pval=TRUE, censor=T, pval.coord=c(100,0.7), surv.scale='percent',
-  legend.labs = levels(hdd_8Tb$model), legend.title='8TB model' )
-
 # and now for large hard drives
-png("large_by_model_survival.png",width=800,height=600)
+png("figure/figure5.png",width=800,height=600)
 
 hdd_large<-hdd %>% filter(capacity %in% c(8,10,12)) %>% mutate(model=droplevels(model))
 hdd_common_large<-hdd_large %>% group_by(model) %>% summarise(n=n()) %>% arrange(desc(n)) %>% head(4)
@@ -145,15 +90,14 @@ ggsurvplot(model_large, data=hdd_large,
   legend = "right",
   legend.labs = levels(hdd_large$model), legend.title='Large HDD' )
 
-png("large_by_model_survival_coxph.png",width=800,height=300)
+png("figure/figure6.png",width=800,height=300)
 model_coxph<-coxph(Surv(age_days, status) ~ model, data=hdd_large)
 # plot results
 ggforest(model_coxph)
+ 
 
   
-
-  
-png("survival_top10.png",width=800,height=600)
+png("figure/figure7.png",width=800,height=600)
 hdd_common_10<-hdd %>% group_by(model) %>% summarise(n=n()) %>% arrange(desc(n)) %>% head(10)
 hdd_common<-hdd %>% filter(model %in% hdd_common_10$model) %>% 
       mutate( model=factor( as.character(model),levels=hdd_common_10$model))
@@ -163,7 +107,7 @@ ggsurvplot(survfit(Surv(age_days, status) ~ model, data=hdd_common),data=hdd_com
   pval.coord=c(100,0.7),surv.scale='percent',legend.labs = levels(hdd_common$model),
   legend.title='Top 10 models',  legend = "right")
 
-png("survival_top10_coxph.png",width=1000,height=800)
+png("figure/figure8.png",width=1000,height=800)
 hdd_common_coxph<-coxph(Surv(age_days, status) ~ model, data=hdd_common)
 # plot results
 ggforest(hdd_common_coxph)
@@ -174,41 +118,64 @@ compare<-pairwise_survdiff(Surv(age_days, status) ~ model, data=hdd_common)
 # check if 5 most reliable are different:
 reliable=c('HDS5C3030ALA630', 'HMS5C4040ALE640', 'HDS5C4040ALE630' , 'HDS722020ALA330' , 'HMS5C4040BLE640')
 
-broom::tidy(res) %>% filter(group1 %in% reliable , group2 %in% reliable) %>% 
+broom::tidy(compare) %>% filter(group1 %in% reliable , group2 %in% reliable) %>% 
     mutate( sig=symnum(p.value, cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 0.1, 1),
                                 symbols = c("****", "***", "**", "*", "+", " ") ) )
 
+# parametric models
 
-# parametric models                                
-png("survreg_time_to_failure.png",width=800,height=600)
-
-fit_model_year<-survreg(Surv(age_days, status) ~ model*year, data=hdd_common)
-
-newdat<-expand.grid(model=levels(hdd_common$model),year='2017')
-newdat<-cbind(newdat,predict(fit_model_year, newdata=newdat,type="quantile",p=0.1,se=T))
+fit_model_weibull<-survreg(Surv(age_days, status) ~ model, data=hdd_common)
+fit_model_exp<-survreg(Surv(age_days, status) ~ model, data=hdd_common,dist='exponential')
 
 
-#ST4000DM000:
-data_ST4000DM000_2017<-hdd %>% filter(model=='ST4000DM000',year=='2017')
-k_m_fit<-broom::tidy(survfit(Surv(age_days, status) ~ 1, data=data_ST4000DM000_2017))
+png("figure/figure9.png",width=800,height=600)
 
-par_fit<-expand.grid(model='ST4000DM000',year='2017',time=1:600)
-par_fit<-cbind(par_fit,predict(fit_model_year, newdata=par_fit,se=T))
+data_ST4000DM000<-hdd %>% filter(model=='ST4000DM000')
+k_m_fit<-broom::tidy(survfit(Surv(age_days, status) ~ 1, data=data_ST4000DM000))
 
+fit_range=0:200/1000 # CDF from 0 to 30%
 
+par_fit_W<-data.frame(predict(fit_model_weibull, newdata=list(model='ST4000DM000'),se=T,type="quantile",p=fit_range))
+par_fit_W$survival<-1.0-fit_range
+par_fit_W$se[is.na(par_fit_W$se)]=0.0 # fix undefined Se at 0 
 
-ggplot(k_m_fit,aes(x=time,y=estimate,ymin=conf.low,ymax=conf.high))+
-  geom_line()+
-  geom_ribbon(alpha=0.1)
+par_fit_E<-data.frame(predict(fit_model_exp, newdata=list(model='ST4000DM000'),se=T,type="quantile",p=fit_range))
+par_fit_E$survival<-1.0-fit_range
+par_fit_E$se[is.na(par_fit_E$se)]=0.0 # fix undefined Se at 0 
 
 
 
-ggplot(newdat,aes(x=model,y=fit,ymin=fit-1.96*se.fit,ymax=fit+1.96*se.fit))+
-    geom_errorbar()+geom_point()+coord_flip()+ylab('Days of service')+xlab('HDD Model')+ggtitle('Expected time to 10% failure')
+ggplot(k_m_fit,aes(x=time,y=estimate))+
+  geom_line(aes(colour='K-M'),alpha=0.6)+
+  geom_line(aes(x=time,y=conf.low,colour='K-M'),lty=2,alpha=0.6)+
+  geom_line(aes(x=time,y=conf.high,colour='K-M'),lty=2,alpha=0.6)+
+  geom_line(data=par_fit_W,aes(x=fit,y=survival,colour='Weibull'),alpha=0.4)+
+  geom_line(data=par_fit_W,aes(x=fit+se*1.96,y=survival,colour='Weibull'),lty=2,alpha=0.4)+
+  geom_line(data=par_fit_W,aes(x=fit-se*1.96,y=survival,colour='Weibull'),lty=2,alpha=0.4)+
+  geom_line(data=par_fit_E,aes(x=fit,y=survival,colour='Exponential'),alpha=0.4)+
+  geom_line(data=par_fit_E,aes(x=fit+se*1.96,y=survival,colour='Exponential'),lty=2,alpha=0.4)+
+  geom_line(data=par_fit_E,aes(x=fit-se*1.96,y=survival,colour='Exponential'),lty=2,alpha=0.4)+
+  scale_colour_manual(values=c("black", "red", "green"), 
+                      name="Fit type",
+                      breaks=c("K-M", "Weibull", "Exponential"))
+  
+    
+png("figure/figure10.png",width=800,height=600)
 
 
+newdat<-expand.grid(model=levels(hdd_common$model))
+newdat_W<-cbind(newdat,predict(fit_model_weibull, newdata=newdat,type="quantile",p=0.1,se=T))
+newdat_E<-cbind(newdat,predict(fit_model_exp, newdata=newdat,type="quantile",p=0.1,se=T))
+newdat_W$fit_type='Weibull'
+newdat_E$fit_type='Exponential'
+
+newdat<-rbind(newdat_W,newdat_E)
+
+ggplot(newdat,aes(x=model,y=fit,ymin=fit-1.96*se.fit,ymax=fit+1.96*se.fit,colour=fit_type))+
+    geom_errorbar()+geom_point()+coord_flip()+ylab('Days of service')+
+    xlab('HDD Model')+
+    ggtitle('Expected time to 10% failure')
 
 
-
-
-
+  
+  
