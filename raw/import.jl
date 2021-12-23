@@ -5,8 +5,8 @@ using DataFrames
 
 
 #
-using Profile
-using StatProfilerHTML
+#using Profile
+#using StatProfilerHTML
 #
 
 # generate SQLite file
@@ -194,12 +194,27 @@ function process_table(t)
     println(t.name)
 
     df=CSV.read(t, DataFrame)
-    #df = CSV.File(t)
+    # enforce data integrity
+    #
+    # date TEXT NOT NULL,
+    # serial_number TEXT NOT NULL,
+    # model TEXT NOT NULL,
+    # capacity_bytes INTEGER (8) NOT NULL,
+    # failure INTEGER (1) NOT NULL,
+    #subset(df,:date=>ByRow())
+
+    # subset!(df, 
+    #    :date => ByRow(!isnothing),
+    #    :serial_number => ByRow(!isnothing),
+    #    :model => ByRow(!isnothing),
+    #    :capacity_bytes => ByRow(!isnothing),
+    #    :failure => ByRow(!isnothing),
+    #    )
+
+    dropmissing!(df, [:date,:serial_number,:model,:capacity_bytes,:failure])
 
     n = join( names(df),"," )
     q = join( repeat(["?"],ncol(df)), "," )
-
-    #PRAGMA journal_mode = MEMORY
 
     SQLite.transaction(conn) do 
         stmt = SQLite.Stmt(conn,"insert into drive_stats($(n)) values ($(q))")
@@ -209,11 +224,12 @@ function process_table(t)
         end
     end
     df = nothing
+    # HACK?
 end
 
 function load_data(d)
 
-    for d in filter(x->startswith(x,"data_Q3_2021")&&endswith(x,".zip"),readdir(d))
+    for d in filter(x->startswith(x,"data_")&&endswith(x,".zip"),readdir(d))
         println(d)
         z=nothing
 
@@ -221,7 +237,7 @@ function load_data(d)
             z=ZipFile.Reader(d)
             for f in filter(x->!startswith(x.name, "__") && endswith(x.name, ".csv"), z.files)
                 process_table(f)
-                break
+                GC.gc()
             end
         finally 
             isnothing(z) || close(z)
