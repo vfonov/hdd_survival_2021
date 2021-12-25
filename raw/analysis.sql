@@ -6,7 +6,7 @@ create index if not exists serial_idx on drive_stats(serial_number_id);
 
 
 -- table of model drive capacity
-create table if not exists model_capacity as select model_id,max(capacity_bytes) from drive_stats group by 1;
+create table if not exists model_capacity as select model_id,max(capacity_bytes) as capacity_bytes from drive_stats group by 1;
 
 
 -- table of model to serial number correspondance 
