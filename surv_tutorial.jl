@@ -8,7 +8,7 @@ using RDatasets
 using MCMCChains, Plots, StatsPlots
 
 # Functionality for splitting and normalizing the data
-#using MLDataUtils: shuffleobs, stratifiedobs, rescale!
+using MLDataUtils: shuffleobs, stratifiedobs, rescale!
 
 using Logging
 
@@ -26,6 +26,9 @@ data = RDatasets.dataset("HSAUR", "mastectomy");
 # Convert "Default" and "Student" to numeric values.
 data[!,:EventNum]      = [r.Event ? 1.0 : 0.0 for r in eachrow(data)]
 data[!,:MetastizedNum] = [r.Metastized == "yes" ? 1.0 : 0.0 for r in eachrow(data)]
+#data[!,:LogTime] = log.(data[!,:Time])
+
+#μ, σ = rescale!(data[!,:LogTime], obsdim=1)
 
 # Delete the old columns which say "Yes" and "No".
 select!(data, Not([:Metastized]))
@@ -42,10 +45,10 @@ train_label = data[:, target]
 
 
 # Bayesian logistic regression (LR)
-@model function survival_regression(x, y, σ)
-
+@model function survival_regression(x, y, σ ) # ,σ2
     intercept ~ Normal(0, σ)
     metastized ~ Normal(0, σ)
+    #scale ~ Normal(1.0, σ2)
     n,_=size(x)
 
     for i = 1:n
@@ -65,11 +68,17 @@ end;
 
 
 # Sample using HMC.
-m = survival_regression(train, train_label, 1)
-chain = sample(m, HMC(0.05, 10), MCMCThreads(), 2_000, 4)
+m = survival_regression(train, train_label, 1) # , 0.1
+#chain = sample(m, HMC(0.05, 10), MCMCThreads(), 2_000, 8)
+chain = sample(m, NUTS(), MCMCThreads(), 2_000, 8)
 
 @info describe(chain)
 
 plot(chain)
-
 savefig("surv_fig1.png")
+
+
+# calculate mean predictions
+intercept = mean(chain[:intercept])
+metastized = mean(chain[:metastized])
+@info "intercept:$(intercept) metastized:$(metastized)"
