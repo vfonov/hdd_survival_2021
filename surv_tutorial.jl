@@ -1,5 +1,6 @@
 # Import Turing and Distributions.
 using Turing, Distributions
+#using Zygote
 using Optim
 using StatsBase
 # Import RDatasets.
@@ -21,6 +22,7 @@ Random.seed!(0);
 
 # Turn off progress monitor.
 Turing.setprogress!(false)
+#Turing.setadbackend(:zygote)
 
 # Import the "Default" dataset.
 data = RDatasets.dataset("HSAUR", "mastectomy");
@@ -48,12 +50,12 @@ target   = :Time
 #@info train_label
 
 @model function survival_regression(time, factor, event)
-    σ = 5
-    #σ ~ truncated(Normal(0, 100), 0, Inf)
+    #σ = 5
+    σ ~ truncated(Normal(0, 100), 0, Inf)
     σ2 ~ truncated(Normal(0, 100), 0, Inf)
 
-    intercept  ~ Normal(0, σ)
-    metastized ~ Normal(0, σ)
+    intercept  ~ Normal(0, sqrt(σ))
+    metastized ~ Normal(0, sqrt(σ))
 
     for i = eachindex(time)
 
@@ -63,7 +65,7 @@ target   = :Time
         if event[i] # not-censored
             time[i] ~ dist
         else # censored
-            pcensor = 1 - cdf(dist, time[i])
+            pcensor = ccdf(dist, time[i])
             1 ~ Bernoulli(pcensor)
         end
         
@@ -75,8 +77,6 @@ end;
 # Sample using HMC.
 # convert(Array{Float64,1}, data.Time)
 model = survival_regression(data.LogTime, data.MetastizedNum, data.Event) # , 1.0,0.1
-@info model
-#chain = sample(model, HMC(0.05, 10), MCMCThreads(), 2_000, 8)
 chain = sample(model, NUTS(0.65), MCMCThreads(), 4_000, 8)
 
 @info describe(chain)
@@ -101,18 +101,19 @@ mle_estimate = optimize(model, MLE())
 #@info coeftable(mle_estimate)
 
 # Generate a MAP estimate.
-map_estimate = optimize(model, MAP())
-@info "MAP estimate"
-@info map_estimate.values
+# map_estimate = optimize(model, MAP())
+# @info "MAP estimate"
+# @info map_estimate.values
 #@info coeftable(map_estimate)
 
 # using weibull distribution
 @model function survival_regression_weibull(time, factor, event)
-    σ = 5
+    #σ = 5
+    σ ~ truncated(Normal(0, 100), 0, Inf)
 
-    scale      ~ truncated(Normal(0, 5), 0.01, Inf) # HACK
-    intercept  ~ Normal(0, σ)
-    metastized ~ Normal(0, σ)
+    scale      ~ truncated(Normal(0, 10), 0.0, Inf) # HACK
+    intercept  ~ Normal(0, sqrt(σ))
+    metastized ~ Normal(0, sqrt(σ))
 
     for i = eachindex(time)
 
@@ -122,7 +123,7 @@ map_estimate = optimize(model, MAP())
         if event[i] # not-censored
             time[i] ~ dist
         else # censored
-            pcensor = 1 - cdf(dist, time[i])
+            pcensor = ccdf(dist, time[i])
             1 ~ Bernoulli(pcensor)
         end
         
@@ -131,8 +132,6 @@ end;
 
 
 model2 = survival_regression_weibull(data.LogTime, data.MetastizedNum, data.Event) # , 1.0,0.1
-@info model2
-#chain2 = sample(model2, HMC(0.05, 10), MCMCThreads(), 4_000, 8)
 chain2 = sample(model2, NUTS(0.65), MCMCThreads(), 4_000, 8)
 
 @info describe(chain2)
@@ -146,7 +145,13 @@ metastized = mean(chain2[:metastized])
 scale = mean(chain2[:scale])
 @info "mean intercept:$(intercept) mean metastized:$(metastized) mean scale:$scale"
 
-# Generate a MAP estimate.
-map_estimate2 = optimize(model2, MAP())
-@info "MAP estimate"
-@info map_estimate2.values
+# # Generate a MAP estimate.
+# map_estimate2 = optimize(model2, MAP())
+# @info "MAP estimate"
+# @info map_estimate2.values
+
+mle_estimate2 = optimize(model2, MLE())
+@info "MLE estimate"
+@info mle_estimate2.values
+#c=coeftable(mle_estimate2)
+@info mle_estimate2
