@@ -1,8 +1,14 @@
-using MLDatasets: MNIST
-using Flux.Data: DataLoader
-using Flux: onehotbatch
+using Flux
 using CUDA
 
+
+using MLDatasets: MNIST
+using Flux.Data: DataLoader
+using Flux.Optimise: Optimiser, WeightDecay
+using Flux: onehotbatch, onecold
+using Flux.Losses: logitcrossentropy
+
+using Logging
 
 # load MNIST dataset
 train_x, train_y = MNIST.traindata(Float32)
@@ -15,9 +21,6 @@ test_x = reshape(test_x, 28, 28, 1, :)
 
 # one-hot encoder
 train_y, test_y = onehotbatch(train_y, 0:9), onehotbatch(test_y, 0:9)
-
-# load into DataLoader
-data_loader = DataLoader((train_x, train_y), batchsize=128, shuffle=true)
 
 # LeNet5 "constructor". 
 # The model can be adapted to any image size
@@ -43,8 +46,8 @@ model = LeNet5() |> gpu
 
 η = 3e-4             # learning rate
 λ = 0                # L2 regularizer param, implemented as weight decay
-batchsize = 128      # batch size
-epochs = 10          # number of epochs
+batchsize = 256      # batch size
+epochs = 100          # number of epochs
 seed = 0             # set seed > 0 for reproducibility
 use_cuda = true      # if true use cuda (if available)
 infotime = 1 	     # report every `infotime` epochs
@@ -52,18 +55,24 @@ checktime = 5        # Save the model every `checktime` epochs. Set to 0 for no 
 tblogger = true      # log training with tensorboard
 savepath = "runs/"    # results path
 
+# load into DataLoader
+data_loader = DataLoader((train_x, train_y), batchsize=batchsize, shuffle=true)
+
+
+
 opt = ADAM(η)
 if  λ>0
     opt = Optimiser(WeightDecay(λ), opt)
 end
+ps = Flux.params(model)
 
 @info "Start Training"
 for epoch in 1:epochs
     @info "Epoch:$(epoch)"
     # go over batches
     for (x, y) in data_loader
-        @assert size(x) == (28, 28, 1, 128) || size(x) == (28, 28, 1, 96)
-        @assert size(y) == (10, 128) || size(y) == (10, 96)
+        #@assert size(x) == (28, 28, 1, 128) || size(x) == (28, 28, 1, 96)
+        #@assert size(y) == (10, 128) || size(y) == (10, 96)
         
         x, y = x |> gpu, y |> gpu
 
