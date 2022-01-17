@@ -15,7 +15,7 @@ f=fit(NelsonAalen, drive_surv.age, drive_surv.FAIL)
 
 c=reinterpret(reshape,Float64,confint(f))
 
-p = plot(x=f.times, y=f.chaz,ymin=c[1,:],ymax=c[2,:], Theme(alphas=[0.8]),
+p = plot(x=f.times, y=f.chaz, ymin=c[1,:],ymax=c[2,:], Theme(alphas=[0.8]),
     Geom.line,Geom.ribbon
 )
 
