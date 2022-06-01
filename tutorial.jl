@@ -223,7 +223,7 @@ begin
 end
 
 # ╔═╡ 53773d95-b50e-4975-8b46-94675c3d8c3e
-
+# compare log-normal fit with weibull fit
 
 # ╔═╡ 9249304d-793e-4bf4-b4c7-76dbdbee3b36
 begin
