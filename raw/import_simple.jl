@@ -1,5 +1,4 @@
 using SQLite
-using ZipFile
 using CSV
 using DataFrames
 using Dates
@@ -114,6 +113,22 @@ model=Dict()
 serial_id=0
 model_id=0
 
+# load from SQL first
+
+function load_dict(tbl)
+    rr=Dict()
+    for r in DBInterface.execute(conn,"select val,id from $(tbl)")
+        rr[r.val]=r.id
+    end
+    return rr
+end
+
+serial_number=load_dict("serial_number")
+serial_id=maximum(values(serial_number))
+model=load_dict("model")
+model_id=maximum(values(model))
+
+
 function serial_to_id(x)
     if haskey(serial_number,x)
         return get(serial_number,x,serial_id)
@@ -167,7 +182,7 @@ end
 function process_table(t)
 
     df=CSV.read(t, DataFrame;types=Dict(
-	"date"=>Date,"serial_number"=>String,"model"=>String,"capacity_bytes"=>Int64,"failure"=>Int),
+	    "date"=>Date,"serial_number"=>String,"model"=>String,"capacity_bytes"=>Int64,"failure"=>Int),
         dateformat="yyyy-mm-dd")
     # enforce data integrity
     #

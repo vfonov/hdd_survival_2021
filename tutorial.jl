@@ -206,10 +206,9 @@ end
 begin
 
 	sim_time_post3,sim_fit_post3=simulate_survival_weibul(sample(resetrange(chain2), 1000),sym=Symbol("metastized[1]"))
-	
 	sim_time_post4,sim_fit_post4=simulate_survival_weibul(sample(resetrange(chain2), 1000),sym=Symbol("metastized[2]"))
 
-    			sim_time_mean3,sim_fit_mean3=simulate_survival_weibul(mean(chain2),sym=Symbol("metastized[1]"))
+    sim_time_mean3,sim_fit_mean3=simulate_survival_weibul(mean(chain2),sym=Symbol("metastized[1]"))
     sim_time_mean4,sim_fit_mean4=simulate_survival_weibul(mean(chain2),sym=Symbol("metastized[2]"))
 
     plot( sim_time_post3, sim_fit_post3, xlabel="Time",ylabel="Survival",title="Weibull Posterior distribution",color=:blue4,alpha=0.05,label="")
