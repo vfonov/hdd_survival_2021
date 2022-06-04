@@ -13,21 +13,26 @@ using Survival
 include("Backblaze.jl")
 using .Backblaze
 
-model = "ST12000NM0007"
-drive_surv_1 = backblaze_drive_surv(model)
-model = "ST12000NM0008"
-drive_surv_2 = backblaze_drive_surv(model)
-model = "ST12000NM001G"
-drive_surv_3 = backblaze_drive_surv(model)
+# model = "ST12000NM0007"
+# drive_surv_1 = backblaze_drive_surv(model)
+# model = "ST12000NM0008"
+# drive_surv_2 = backblaze_drive_surv(model)
+# model = "ST12000NM001G"
+# drive_surv_3 = backblaze_drive_surv(model)
+# drive_surv = vcat(drive_surv_1,drive_surv_2,drive_surv_3)
+# model = "ST12000"
 
-drive_surv = vcat(drive_surv_1,drive_surv_2,drive_surv_3)
-model = "ST12000"
+
+model = "ST4000DM000"
+drive_surv = backblaze_drive_surv(model)
 
 @info "Sorting to speedup ?"
 sort!(drive_surv,[:age])
+@info first(drive_surv,6)
 
 
-failed_drive_surv = subset(drive_surv,:failure => ByRow(x->x==1))
+
+failed_drive_surv   = subset(drive_surv,:failure => ByRow(x->x==1))
 censored_drive_surv = subset(drive_surv,:failure => ByRow(x->x==0))
 
 global_max_age = drive_surv.age[end]# should be sorted
@@ -37,7 +42,7 @@ global_max_age = drive_surv.age[end]# should be sorted
 @info "Median censored age:$(median(censored_drive_surv.age)/365)y"
 
 
-mutable struct check_result
+struct check_result
     fail::Bool
     fail_day::Int64
     n_rebuild::Int64
@@ -51,24 +56,23 @@ end
 
 # return (n_fail,n_rebuild)
 function check_fail(s::DataFrame, n_raid::Int64, time_window::Int64)::check_result
-    # return (failed,age,n_rebuid)
-    censored::Vector{Int64} = subset(s,:failure => ByRow(x-> x == 0)).age
-    min_censored_age::Int64 = global_max_age
+    # return (failed,age,n_rebuild)
+    censored = s.age[ .!s.failure ]
+    min_censored_age = global_max_age
 
-    if length(censored)>0
-        min_censored_age = censored[1]
-    end
+    min_censored_age = length(censored)>0 ? censored[1] : global_max_age
+
     result = check_result()
 
-    failed::Vector{Int64} = subset(s,:failure => ByRow(x->x==1), :age => ByRow(x-> x<= min_censored_age)).age
-    n_rebuild::Integer = length(failed)
+    failed = s.age[ s.failure .& ( s.age .< min_censored_age )]
+    n_rebuild = length(failed)
 
     if n_rebuild == 0
         return check_result(false, min_censored_age, 0)
     elseif  n_rebuild <= n_raid
         return check_result(false, min_censored_age, n_rebuild)
     else
-        fail::Bool = 0
+        fail = false
         fail_day = failed[1]
         
         for n=1:(n_rebuild-n_raid)
@@ -87,34 +91,32 @@ function simulate_raid(drive_surv, n_samples::Integer, n_pools::Integer, n_drive
     results = DataFrame(failed=zeros(Bool, n_samples), age=zeros(Int64, n_samples), n_rebuild=zeros(Int64, n_samples))
 
     Threads.@threads for i in ProgressBar(1:n_samples)
-        pool_res=check_result()
+        fail = false
+        fail_day = 0
+        n_rebuild = 0
         for p = 1:n_pools
-            ss = sample(1:nrow(drive_surv), n_drives; replace=true,ordered=true)
+            ss = sort(sample(1:nrow(drive_surv), n_drives; replace=true, ordered=false))
             fl = check_fail(drive_surv[ss,:], n_raid, time_window)
+
             if p == 1
-                pool_res = fl
-            elseif fl.fail && ((pool_res.fail && fl.fail_day<pool_res.fail_day) || !pool_res.fail)
-                    pool_res = fl
-            else
-                pool_res.n_rebuild += fl.n_rebuild
-                if pool_res.fail_day > fl.fail_day
-                    pool_res.fail_day = fl.fail_day
+                fail = fl.fail
+                fail_day = fl.fail_day
+                n_rebuild = fl.n_rebuild
+            elseif fl.fail
+                if !fail
+                    fail=true
+                    fail_day=fl.fail_day
+                    n_rebuild=fl.n_rebuild
+                else
+                    fail_day = fail_day > fl.fail_day ? fl.fail_day : fail_day
+                    n_rebuild += fl.n_rebuild
                 end
             end
         end
-
-        results[i,:] = (pool_res.fail, pool_res.fail_day, pool_res.n_rebuild)
+        results[i,:] = (fail, fail_day, n_rebuild)
     end
 
-
-    failed = subset(results,:failed)
-    # get the minimum censored time
-    mean_time_to_failure = mean(failed.age)
-    pct_failed     = mean(results.failed)
-    pct_rebuild    = mean(results.n_rebuild .> 1 )
-    median_rebuild = median(results.n_rebuild)
-
-    return (pct_failed*100.0, pct_rebuild*100.0, median_rebuild, mean_time_to_failure, results)
+    return results #(pct_failed*100.0, pct_rebuild*100.0, median_rebuild, mean_time_to_failure, results)
 end
 
 # simulating on real example 
@@ -125,6 +127,12 @@ simulations  = DataFrame(
     n_raid   =  [2, 2, 2, 2],
     n_pools  =  [1, 2, 3, 4]
 )
+
+# simulations  = DataFrame(
+#     n_drives =  [9,9],
+#     n_raid   =  [2,2],
+#     n_pools  =  [1,3]
+# )
 
 
 simulations_results = DataFrame(
@@ -157,7 +165,6 @@ all_fits = DataFrame(
 if false
 
 # survival curves for the baseline data
-
 fit_km_bl  = fit(KaplanMeier,drive_surv.age, drive_surv.FAIL)
 conf_km_bl = reinterpret(reshape,Float64,confint(fit_km_bl))
 
@@ -179,13 +186,20 @@ end
 
 for i=1:nrow(simulations)
 
-    (pct_failed,pct_rebuild,median_rebuild,mean_time_to_failure, results)=
-        simulate_raid(drive_surv, n_samples,simulations.n_pools[i], simulations.n_drives[i], simulations.n_raid[i], time_window)
+    #(pct_failed,pct_rebuild,median_rebuild, mean_time_to_failure, results)=
+    results = simulate_raid(drive_surv, n_samples, simulations.n_pools[i], simulations.n_drives[i], simulations.n_raid[i], time_window)
 
-    push!(simulations_results, (simulations.n_pools[i], simulations.n_drives[i], simulations.n_raid[i],pct_failed,pct_rebuild,median_rebuild,mean_time_to_failure))
+    failed         = subset(results, :failed)
+    # # get the minimum censored time
+    mean_time_to_failure = mean(failed.age)
+    pct_failed     = mean(results.failed)
+    pct_rebuild    = mean(results.n_rebuild .> 1 )
+    median_rebuild = median(results.n_rebuild)
+
+    push!(simulations_results, (simulations.n_pools[i], simulations.n_drives[i], simulations.n_raid[i],pct_failed, pct_rebuild, median_rebuild, mean_time_to_failure))
 
     # buld K-M fit
-    fit_km = fit(KaplanMeier,results.age, results.failed)
+    fit_km = fit(KaplanMeier, results.age, results.failed)
     conf_km = reinterpret(reshape,Float64,confint(fit_km))
 
     fits = DataFrame(
@@ -224,8 +238,6 @@ p |> PNG("bootstrap_40_drives_$(model).png",8inch,6inch,dpi=200)
 if false
 # failed = subset(s,:failure => ByRow(x->x==1),:age => ByRow(x->x<=min_censored_age)).age
 raid_z2_raid_z3 = subset(all_fits,:n_raid => ByRow(x->x>=2))
-#@info raid_z2_raid_z3
-# cutoff at 1000 days?
 
 p = plot(raid_z2_raid_z3,
        x=:age, 
@@ -239,7 +251,6 @@ p = plot(raid_z2_raid_z3,
     Geom.line,Geom.ribbon )
 
 p |> PNG("bootstrap_pools_$(model)_raid_z2_z3.png",8inch,6inch,dpi=200)
-#    @info "Failed: $(pct_failed*100)% Rebuilds: $(pct_rebuild*100)% Median rebuild drives: $(median_rebuild)"
 
 end
 println(simulations_results)

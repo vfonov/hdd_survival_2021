@@ -19,7 +19,18 @@ create table if not exists model_serial as select distinct model_id,serial_numbe
 
 
 -- drive survival table
-create table if not exists drive_surv as select model_id,serial_number_id,min(day) as start,max(day) as stop,max(failure) as failure from drive_stats group by 1,2;
+create table if not exists drive_surv as select model_id,serial_number_id,min(day) as start from drive_stats group by 1,2;
+-- ,max(day) as stop,max(failure) as failure 
+
+alter table drive_surv add column stop integer;
 alter table drive_surv add column age integer;
+alter table drive_surv add column failure integer;
+
+-- have to make a separate query for hard drives that failed, because as it turns out the record continues after drive is failed
+update drive_surv as a set stop=(select min(b.day) from drive_stats as b where b.model_id=a.model_id and b.serial_number_id=a.serial_number_id and b.failure=1);
+update drive_surv set failure=1 where stop is not NULL;
+update drive_surv as a set stop=(select max(b.day) from drive_stats as b where b.model_id=a.model_id and b.serial_number_id=a.serial_number_id ) where a.stop is NULL;
+
 
 update drive_surv set age=stop-start;
+update drive_surv set failure=0 where failure is NULL;

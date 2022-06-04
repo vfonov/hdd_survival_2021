@@ -12,8 +12,6 @@ function __init__()
 end
 
 function backblaze_drive_surv(model)
-    @info(conn)
-
     model_id  = (DBInterface.execute(conn,"select id from model where val=?",[model]) |> DataFrame ).id[1]
     drive_surv = DBInterface.execute(conn,"select age,failure from drive_surv where model_id=? and age>0",[model_id]) |> DataFrame
 

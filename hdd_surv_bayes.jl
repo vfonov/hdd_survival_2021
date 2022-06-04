@@ -23,8 +23,7 @@ Turing.setprogress!(true)
 include("Backblaze.jl")
 using .Backblaze
 
-model = "ST12000NM0007"
-data = backblaze_drive_surv(model)
+data = backblaze_drive_surv("ST4000DM000")
 
 data[!,:log_age] = log.(data.age)
 mean_log_age = mean(data[!,:log_age])
