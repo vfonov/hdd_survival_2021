@@ -25,7 +25,7 @@ Turing.setprogress!(true)
 include("Backblaze.jl")
 using .Backblaze
 
-const n_model = 8
+const n_model = 3
 
 models = first(model_stats(),n_model)
 
@@ -74,10 +74,10 @@ plot(km_stats, x=:times, y=:surv, color=:model,
     # priors 
     μ ~ MvNormal( zeros(n_model), 1.0)
 	# prior scale
-	θ ~ LogNormal(0.0, 1.0) # truncated(Normal(0.0,5.0),0.0,Inf) MvLogNormal ?
+	θ ~ MvLogNormal(zeros(n_model), 1.0) # truncated(Normal(0.0,5.0),0.0,Inf) MvLogNormal ?
     # fitting data
     for i in eachindex(log_time)
-        dist = Gumbel(μ[hdd_model[i]], θ)
+        dist = Gumbel(μ[hdd_model[i]], θ[hdd_model[i]])
         if event[i] # not-censored
             log_time[i] ~ dist
         else # censored
@@ -88,7 +88,7 @@ end;
 
 surv_model_weibull=survival_weibul( data.n_log_age, data.failure, levelcode.(data.model) ) 
 
-function simulate_survival_weibul(chain::Chains; sym="μ[1]",p=5)
+function simulate_survival_weibul(chain::Chains; μ="μ[1]",θ="θ[1]",p=5)
     # sample from chain, times are in years
     # extract percntiles : p , 50, 100-p
 
@@ -96,7 +96,7 @@ function simulate_survival_weibul(chain::Chains; sym="μ[1]",p=5)
     sim_range = LinRange(n_log_age_range[1], n_log_age_range[2], 100)
 
     sims = hcat( 
-        (ccdf( Gumbel(μ, θ), sim_range )  for (μ, θ) in zip(chain[sym], chain[Symbol("θ")]) )...
+        (ccdf( Gumbel(μ, θ), sim_range )  for (μ, θ) in zip(chain[θ], chain[θ]) )...
     )
 
     # extract percentile
@@ -111,7 +111,7 @@ function simulate_survival_weibul(chain::Chains; sym="μ[1]",p=5)
                 )
 end;
 
-function simulate_survival_weibul(chain::ChainDataFrame; sym="μ[1]")
+function simulate_survival_weibul(chain::ChainDataFrame; μ="μ[1]",θ="θ[1]")
     # sample from chain summary # TODO: fix this to not epect multiple sims?
 
     # generate survival curves
@@ -147,7 +147,7 @@ chain_weibul = sample(surv_model_weibull, NUTS(0.65), MCMCThreads(), 1_000, 4)
 
 # simulate distributions
 sim_weibul_post=vcat( ( 
-    insertcols!( simulate_survival_weibul(sample(resetrange(chain_weibul), 1000), sym="μ[$i]"), :model=> levels(data.model)[i])
+    insertcols!( simulate_survival_weibul(sample(resetrange(chain_weibul), 1000), μ="μ[$i]",θ="θ[$i]"), :model=> levels(data.model)[i])
     for i in 1:n_model)...)
 
 # sim_weibul_post_mean = vcat( ( 

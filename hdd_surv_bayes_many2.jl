@@ -74,10 +74,10 @@ plot(km_stats, x=:times, y=:surv, color=:model,
     # priors 
     μ ~ MvNormal( zeros(n_model), 1.0)
 	# prior scale
-	θ ~ LogNormal(0.0, 1.0) # truncated(Normal(0.0,5.0),0.0,Inf) MvLogNormal ?
+	θ ~ MvLogNormal(zeros(n_model), 1.0) # truncated(Normal(0.0,5.0),0.0,Inf) MvLogNormal ?
     # fitting data
     for i in eachindex(log_time)
-        dist = Logistic(μ[hdd_model[i]], θ)
+        dist = Logistic(μ[hdd_model[i]], θ[hdd_model[i]])
         if event[i] # not-censored
             log_time[i] ~ dist
         else # censored
@@ -88,7 +88,7 @@ end;
 
 surv_model_loglogistic=survival_loglogistic( data.n_log_age, data.failure, levelcode.(data.model) ) 
 
-function simulate_survival_loglogistic(chain::Chains; sym="μ[1]",p=5)
+function simulate_survival_loglogistic(chain::Chains; μ="μ[1]",θ="θ[1]",p=5)
     # sample from chain, times are in years
     # extract percntiles : p , 50, 100-p
 
@@ -96,7 +96,7 @@ function simulate_survival_loglogistic(chain::Chains; sym="μ[1]",p=5)
     sim_range = LinRange(n_log_age_range[1], n_log_age_range[2], 100)
 
     sims = hcat( 
-        (ccdf( Logistic(μ, θ), sim_range )  for (μ, θ) in zip(chain[sym], chain[Symbol("θ")]) )...
+        (ccdf( Logistic(μ, θ), sim_range )  for (μ, θ) in zip(chain[μ], chain[θ]) )...
     )
 
     # extract percentile
@@ -111,7 +111,7 @@ function simulate_survival_loglogistic(chain::Chains; sym="μ[1]",p=5)
                 )
 end;
 
-function simulate_survival_loglogistic(chain::ChainDataFrame; sym="μ[1]")
+function simulate_survival_loglogistic(chain::ChainDataFrame; μ="μ[1]",θ="θ[1]")
     # sample from chain summary # TODO: fix this to not epect multiple sims?
 
     # generate survival curves
@@ -120,7 +120,7 @@ function simulate_survival_loglogistic(chain::ChainDataFrame; sym="μ[1]")
     vcat( ( DataFrame(  surv=ccdf( Logistic(μ, θ), sim_range ), 
                         times=exp.(sim_range .* scale_log_age .+ mean_log_age) ./ 365,
                         sim=fill(s,length(sim_range)) )
-                        for (s,(μ, θ)) in enumerate(zip(chain[sym,:mean], chain[Symbol("θ"),:mean])) )... )
+                        for (s,(μ, θ)) in enumerate(zip(chain[μ,:mean], chain[θ,:mean])) )... )
 end;
 
 # simulate priors
@@ -147,7 +147,7 @@ chain_loglogistic = sample(surv_model_loglogistic, NUTS(0.65), MCMCThreads(), 1_
 
 # simulate distributions
 sim_loglogistic_post=vcat( ( 
-    insertcols!( simulate_survival_loglogistic(sample(resetrange(chain_loglogistic), 1000), sym="μ[$i]"), :model=> levels(data.model)[i])
+    insertcols!( simulate_survival_loglogistic(sample(resetrange(chain_loglogistic), 1000), μ="μ[$i]",θ="θ[$i]"), :model=> levels(data.model)[i])
     for i in 1:n_model)...)
 
 # sim_loglogistic_post_mean = vcat( ( 
@@ -171,4 +171,4 @@ l3=layer(km_stats, x=:times, y=:surv,
 plot( l1, l2, l3,
     Guide.colorkey(title="HDD model"),
     Theme(background_color="white",key_position=:inside,alphas=[0.6]) ) |>
-    SVG("hdd_multi_loglogistic_posterior.svg", 15cm, 15cm)
+    SVG("hdd_multi_loglogistic_posterior_full.svg", 15cm, 15cm)
