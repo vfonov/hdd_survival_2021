@@ -25,7 +25,7 @@ Turing.setprogress!(true)
 include("Backblaze.jl")
 using .Backblaze
 
-const n_model = 8
+const n_model = 3
 
 models = first(model_stats(),n_model)
 
@@ -74,10 +74,10 @@ plot(km_stats, x=:times, y=:surv, color=:model,
     # priors 
     μ ~ MvNormal( zeros(n_model), 1.0)
 	# prior scale
-	θ ~ MvLogNormal(zeros(n_model), 1.0) # truncated(Normal(0.0,5.0),0.0,Inf) MvLogNormal ?
+	θ ~ LogNormal(0, 1.0) # truncated(Normal(0.0,5.0),0.0,Inf) MvLogNormal ?
     # fitting data
     for i in eachindex(log_time)
-        dist = Logistic(μ[hdd_model[i]], θ[hdd_model[i]])
+        dist = Logistic(μ[hdd_model[i]], θ)
         if event[i] # not-censored
             log_time[i] ~ dist
         else # censored
@@ -88,7 +88,7 @@ end;
 
 surv_model_loglogistic=survival_loglogistic( data.n_log_age, data.failure, levelcode.(data.model) ) 
 
-function simulate_survival_loglogistic(chain::Chains; μ="μ[1]",θ="θ[1]",p=5)
+function simulate_survival_loglogistic(chain::Chains; μ="μ[1]",θ="θ",p=5)
     # sample from chain, times are in years
     # extract percntiles : p , 50, 100-p
 
@@ -111,7 +111,7 @@ function simulate_survival_loglogistic(chain::Chains; μ="μ[1]",θ="θ[1]",p=5)
                 )
 end;
 
-function simulate_survival_loglogistic(chain::ChainDataFrame; μ="μ[1]",θ="θ[1]")
+function simulate_survival_loglogistic(chain::ChainDataFrame; μ="μ[1]",θ="θ")
     # sample from chain summary # TODO: fix this to not epect multiple sims?
 
     # generate survival curves
@@ -134,7 +134,10 @@ plot( sim_loglogistic_prior, x=:times, y=:surv, ymin=:surv_p1,ymax=:surv_p2, Geo
 
 @info "Running sampler"
 chain_loglogistic = sample(surv_model_loglogistic, NUTS(0.65), MCMCThreads(), 1_000, 4)
-#summaries2, quantiles2 = describe(chain_loglogistic);
+summaries, quantiles = describe(chain_loglogistic);
+@info "Summaries:"
+show(IOContext(stdout, :limit => false), "text/plain",summaries)
+show(IOContext(stdout, :limit => false), "text/plain",quantiles)
 #df = DataFrame(chain_loglogistic)
 #df[!, :chain] = categorical(df.chain)
 
@@ -147,7 +150,7 @@ chain_loglogistic = sample(surv_model_loglogistic, NUTS(0.65), MCMCThreads(), 1_
 
 # simulate distributions
 sim_loglogistic_post=vcat( ( 
-    insertcols!( simulate_survival_loglogistic(sample(resetrange(chain_loglogistic), 1000), μ="μ[$i]",θ="θ[$i]"), :model=> levels(data.model)[i])
+    insertcols!( simulate_survival_loglogistic(sample(resetrange(chain_loglogistic), 1000), μ="μ[$i]",θ="θ"), :model=> levels(data.model)[i])
     for i in 1:n_model)...)
 
 # sim_loglogistic_post_mean = vcat( ( 
