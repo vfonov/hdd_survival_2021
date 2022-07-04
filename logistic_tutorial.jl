@@ -7,11 +7,8 @@ using RDatasets
 # Import MCMCChains, Plots, and StatsPlots for visualizations and diagnostics.
 using MCMCChains, Plots, StatsPlots
 
-# We need a logistic function, which is provided by StatsFuns.
-using StatsFuns: logistic
-
 # Functionality for splitting and normalizing the data
-using MLDataUtils: shuffleobs, stratifiedobs, rescale!
+using MLDataUtils: rescale!
 
 using Logging
 
