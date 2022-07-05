@@ -79,7 +79,7 @@ plot(km_stats, x=:times, y=:surv, color=:model,
 
     # distribution weights
     # always the same, otherwise model will be unedtifiable
-    const w1 = 0.0
+    w1 = 0.0
     w2 ~  Normal(0,1 )
     w3 ~  Normal(0,1 )
 
@@ -90,7 +90,7 @@ plot(km_stats, x=:times, y=:surv, color=:model,
 
 	# prior scale ,
     # first component is always constant hazard (exponential fit) 
-    const θ1 = 1.0 
+    θ1 = 1.0 
     # θ2 - between 0 and 1 - failure accelerates with time 
 	θ2 ~ filldist( Beta( 1.0,1.0), n_model) 
     # θ2 - above 1.0 - failure slows down with time
@@ -120,8 +120,8 @@ function simulate_survival_mix(chain::Chains;
     μ1="μ1[1]",θ2="θ2[1]",μ2="μ2[1]",θ3="θ3[1]",μ3="μ3[1]",p=5)
     # sample from chain, times are in years
     # extract percentiles : p , 50, 100-p
-    const w1 = 0.0
-    const θ1 = 1.0 
+    w1 = 0.0
+    θ1 = 1.0 
 
     # generate survival curves, with fixed number of steps
     sim_range = LinRange( n_log_age_range[1], n_log_age_range[2], 100)
