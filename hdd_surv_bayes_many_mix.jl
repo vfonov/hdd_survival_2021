@@ -6,6 +6,7 @@ using Optim
 using StatsBase
 using Survival
 using SplitApplyCombine
+using Flux: softmax
 
 # Import MCMCChains, Plots, and StatsPlots for visualizations and diagnostics.
 using MCMCChains
@@ -73,30 +74,37 @@ plot(km_stats, x=:times, y=:surv, color=:model,
     # priors
     μ_bar=0.0
     σ_bar=1.0
+
     θ_bar=0.0
     σ2_bar=1.0
 
+    # distribution weights
+    w1 ~  Normal(0,1 )
+    w2 ~  Normal(0,1 )
+
+    # multinomial logistic regression
+    ww = softmax([0.0,w1,w2])
+
     μ1 ~ filldist( Normal(μ_bar, σ_bar), n_model)
     μ2 ~ filldist( Normal(μ_bar, σ_bar), n_model)
-	# prior scale
-	θ1 ~ filldist( LogNormal(θ_bar, σ2_bar),n_model) 
-	θ2 ~ filldist( LogNormal(θ_bar, σ2_bar),n_model) 
+    μ3 ~ filldist( Normal(μ_bar, σ_bar), n_model)
+	# prior scale , 
+    # θ1 - between 0 and 1 - failure accelerates with time 
+	θ1 ~ filldist( Beta( 1.0,1.0),n_model) 
+    # θ2 - above 1.0 - failure slows down with time
+	θ2 ~ filldist( LogNormal(θ_bar, σ2_bar)+1.0, n_model) 
+    # third component is always constant hazard (exponential fit) 
+	θ3 = 1.0
     # fitting data
     for i in eachindex(log_time)
-        #dist1 = Gumbel(μ1[hdd_model[i]],θ1[hdd_model[i]])
-        #dist2 = Gumbel(μ2[hdd_model[i]],θ2[hdd_model[i]]) 
         dist = MixtureModel(Gumbel[
             Gumbel(μ1[hdd_model[i]],θ1[hdd_model[i]]),
-            Gumbel(μ2[hdd_model[i]],θ2[hdd_model[i]]) ])
+            Gumbel(μ2[hdd_model[i]],θ2[hdd_model[i]]),
+            Gumbel(μ3[hdd_model[i]],θ3 ) ],ww)
 
         if event[i] # not-censored
-            #log_time[i] ~ dist1
-            #log_time[i] ~ dist2
             log_time[i] ~ dist
         else # censored
-            # HACK : ?
-            #1 ~ Bernoulli(ccdf(dist1, log_time[i]))
-            #1 ~ Bernoulli(ccdf(dist2, log_time[i]))
             1 ~ Bernoulli(ccdf(dist, log_time[i]))
         end
     end
@@ -104,16 +112,24 @@ end;
 
 surv_model_mix=survival_mix( data.n_log_age, data.failure, levelcode.(data.model) ) 
 
-function simulate_survival_mix(chain::Chains; μ1="μ1[1]",θ1="θ1[1]",μ2="μ2[1]",θ2="θ2[2]",p=5)
+function simulate_survival_mix(chain::Chains; μ1="μ1[1]",θ1="θ1[1]",μ2="μ2[1]",θ2="θ2[1]",μ3="μ3[1]",p=5)
     # sample from chain, times are in years
-    # extract percntiles : p , 50, 100-p
+    # extract percentiles : p , 50, 100-p
 
     # generate survival curves
     sim_range = LinRange(n_log_age_range[1], n_log_age_range[2], 100)
 
     # TODO: change to the mixture of two gumbel
     sims = hcat( 
-        (ccdf( Gumbel(μ1, θ1), sim_range )  for (μ1, θ1) in zip(chain[μ1], chain[θ1]) )...
+        (ccdf( 
+            MixtureModel(Gumbel[
+                Gumbel(μ1,θ1),
+                Gumbel(μ2,θ2),
+                Gumbel(μ3,1.0)
+                ],softmax([0.0,w1,w2]))
+            , sim_range )  for (μ1, θ1,μ2,θ2,μ3,w1,w2) in 
+                        zip(chain[μ1], chain[θ1], chain[μ2], chain[θ2],chain[μ3],
+                            chain["w1"],chain["w2"]) )...
     )
 
     # extract percentile
@@ -156,7 +172,7 @@ show(IOContext(stdout, :limit => false), "text/plain",quantiles)
 # simulate distributions
 sim_mix_post=vcat( ( 
     insertcols!( simulate_survival_mix(sample(resetrange(chain_mix), 1000), 
-                μ1="μ1[$i]",θ1="θ1[$i]", μ2="μ2[$i]",θ2="θ2[$i]"), :model=> levels(data.model)[i])
+                μ1="μ1[$i]",θ1="θ1[$i]", μ2="μ2[$i]",θ2="θ2[$i]", μ3="μ3[$i]"), :model=> levels(data.model)[i])
     for i in 1:n_model)...)
 
 # sim_mix_post_mean = vcat( ( 
