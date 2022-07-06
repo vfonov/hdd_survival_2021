@@ -71,19 +71,16 @@ plot(km_stats, x=:times, y=:surv, color=:model,
 # using mix distribution
 @model function survival_mix(log_time::Vector{Float64}, event::Vector{Bool}, hdd_model::Vector{Int64})
     # priors
-    μ_bar=0.0
-    σ_bar=1.0
+    μ_bar ~ Normal()
+    σ_bar ~ LogNormal()
 
-    θ_bar=0.0
-    σ2_bar=1.0
+    θ_bar ~ Normal()
+    σ2_bar ~ LogNormal()
 
-    # distribution weights
-    # always the same, otherwise model will be unedtifiable
-    w1 = 0.0
-    w2 ~  Normal(0,1 )
-    w3 ~  Normal(0,1 )
+    α_bar ~ LogNormal()
+    β_bar ~ LogNormal()
 
-
+ 
     μ1 ~ filldist( Normal(μ_bar, σ_bar), n_model)
     μ2 ~ filldist( Normal(μ_bar, σ_bar), n_model)
     μ3 ~ filldist( Normal(μ_bar, σ_bar), n_model)
@@ -92,19 +89,25 @@ plot(km_stats, x=:times, y=:surv, color=:model,
     # first component is always constant hazard (exponential fit) 
     θ1 = 1.0 
     # θ2 - between 0 and 1 - failure accelerates with time 
-	θ2 ~ filldist( Beta( 1.0,1.0), n_model) 
+	θ2 ~ filldist( Beta( α_bar, β_bar), n_model) 
     # θ2 - above 1.0 - failure slows down with time
-	θ3 ~ filldist( LogNormal(θ_bar, σ2_bar)+1.0, n_model) 
+	θ3 ~ filldist( LogNormal(θ_bar, σ2_bar) + 1.0, n_model) 
 
+    # distribution weights
+    # w1 always the same, otherwise model will be unidetifiable
+    w1 = 0.0
+    w2 ~  Normal()
+    w3 ~  Normal()
     # multinomial logistic regression
     ww = softmax([w1,w2,w3])
 
     # fitting data
     for i in eachindex(log_time)
-        dist = MixtureModel(Gumbel[
+        dist = MixtureModel( Gumbel[
             Gumbel(μ1[hdd_model[i]],θ1),
             Gumbel(μ2[hdd_model[i]],θ2[hdd_model[i]]),
-            Gumbel(μ3[hdd_model[i]],θ3[hdd_model[i]])],ww)
+            Gumbel(μ3[hdd_model[i]],θ3[hdd_model[i]])],
+            ww)
 
         if event[i] # not-censored
             log_time[i] ~ dist
@@ -205,4 +208,4 @@ l3=layer(km_stats, x=:times, y=:surv,
 plot( l1, l2, l3,
     Guide.colorkey(title="HDD model"),
     Theme(background_color="white",key_position=:inside,alphas=[0.6]) ) |>
-    SVG("hdd_mix_mix_posterior_full.svg", 15cm, 15cm)
+    SVG("hdd_mix_l2_posterior_full.svg", 15cm, 15cm)
