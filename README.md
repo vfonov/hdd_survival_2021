@@ -1,19 +1,39 @@
-# HDD Survival analysis, based on data from BackBlaze 2013-2017 
+# HDD Survival analysis, based on data from BackBlaze 2013-2022
 
-## Data preprocessing
+## Data download and preprocess
 
-Raw data from <https://www.backblaze.com/b2/hard-drive-test-data.html> , was downloaded and summarized with  `import.sh` , the result is stored in `backblaze_2013_2017_hdd_survival.csv`. It contains survival summary of each hard drive found in the database, in the form: `serial_number`,`make`,`model`,`status`,`age_days`,`capacity`,`start` , where 
+* `raw/download.jl` - download script
+* `raw/import_simple.jl` - import data from .csv files into SQLite DB
+* `raw/analysis.sql` - aggregate data 
 
-* `serial_number` - serial number of the hard drive
-* `make` - hard drive manufacturer
-* `model` - model number
-* `status` - `1`: hard drive failed , `0`: hard drive survived past observation window (i.e it was *censored*)
-* `age_days` - how old was hard drive in the end, based on smart_9_raw parameter, converted to number of days 
-* `capacity` - capacity in TB, rounded to the one significant digit
-* `start` - observation start (i.e the earliest day the drive was found in DB)
+## Data Structure (aggregated):
 
-## Dependencies
-* `install.packages(c('tidyverse','survival','survminer','scales'))`
+* `serial_number`
+  
+  * `id` - HDD id (integer)
+  * `val` - HDD serial number (string)
 
-## Survival Analysis
+* `model`
+  
+  * `id` - HDD model id (integer)
+  * `val` - HDD model name (string)
 
+* `model_serial` 
+
+  * `model_id` - HDD model id (integer)
+  * `serial_number_id` - HDD id (integer)
+
+* `model_capacity`
+
+  * `model_id` - HDD model id (integer)
+  * `capacity_bytes` - HDD capacity in bytes (integer)
+
+* `drive_surv`
+
+  * `model_id` - HDD model id (integer)
+  * `serial_number_id` - HDD serial id (integer)
+  * `failure` - `1`: hard drive failed , `0`: hard drive survived past observation window (i.e it was *censored*)
+  * `start` - first day HDD was available (days since 2010-01-01 ) (integer)
+  * `stop` - last day HDD was available (days since 2010-01-01 ) (integer)
+  * `age` - number of days before failure or censoring (integer)
+  
