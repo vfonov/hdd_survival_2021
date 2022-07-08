@@ -25,7 +25,7 @@ Turing.setprogress!(true)
 include("Backblaze.jl")
 using .Backblaze
 
-const n_model = 3
+const n_model = 1
 
 models = first(model_stats(),n_model)
 
